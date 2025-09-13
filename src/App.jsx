@@ -48,6 +48,8 @@ export default function App(){
   const [week, setWeek] = useState(makeEmptyWeek)
   const [search, setSearch] = useState('')
   const [roleFilter, setRoleFilter] = useState('all')
+  // Estado para asociados al horario
+  const [asociados, setAsociados] = useState([])
 
   const dragPersonRef = useRef(null)
 
@@ -138,16 +140,53 @@ export default function App(){
     setWeek((w)=>{
       const next = structuredClone(w)
       next[day][shift].assigned.push(personId)
+      if (person.role === roles.DOCTOR || person.role === roles.NURSE) {
+        // console.log(`Grilla actualizada: ${person.role} asignado/a (${person.name}) a ${day} - ${shift}`)
+      }
       return next
     })
+    // Actualizar asociados
+    setTimeout(()=>{
+      setAsociados((prev)=>{
+        // Recalcular todos los asignados únicos actuales
+        const asignados = new Set()
+        days.forEach((d)=>shifts.forEach((s)=>{
+          week[d][s].assigned.forEach((id)=>{
+            const p = people.find((x)=>x.id===id)
+            if(p && (p.role === roles.DOCTOR || p.role === roles.NURSE)) asignados.add(id)
+          })
+        }))
+        asignados.add(personId)
+        return Array.from(asignados).map(id=>people.find(p=>p.id===id)).filter(Boolean)
+      })
+    }, 0)
   }
 
   const removePerson = (personId, day, shift) => {
+    const person = people.find((p)=>p.id===personId)
     setWeek((w)=>{
       const next = structuredClone(w)
       next[day][shift].assigned = next[day][shift].assigned.filter((x)=>x!==personId)
+      if (person && (person.role === roles.DOCTOR || person.role === roles.NURSE)) {
+        // console.log(`Grilla actualizada: ${person.role} removido/a (${person.name}) de ${day} - ${shift}`)
+      }
       return next
     })
+    // Actualizar asociados
+    setTimeout(()=>{
+      setAsociados(()=>{
+        // Recalcular todos los asignados únicos actuales
+        const asignados = new Set()
+        days.forEach((d)=>shifts.forEach((s)=>{
+          week[d][s].assigned.forEach((id)=>{
+            const p = people.find((x)=>x.id===id)
+            if(p && (p.role === roles.DOCTOR || p.role === roles.NURSE)) asignados.add(id)
+          })
+        }))
+        // No agregamos personId porque fue removido
+        return Array.from(asignados).map(id=>people.find(p=>p.id===id)).filter(Boolean)
+      })
+    }, 0)
   }
 
   const onDragStartFromPool = (p) => (e) => {
@@ -251,6 +290,23 @@ export default function App(){
               <div className="text-xs text-slate-500 flex items-start gap-2 pt-2">
                 <AlertTriangle className="h-4 w-4 mt-0.5"/> Arrastra desde este panel hacia la grilla.
               </div>
+              {/* Lista de asociados al horario */}
+              <div className="mt-6">
+                <h3 className="font-semibold text-slate-700 mb-2 text-sm">Asociados al horario</h3>
+                {asociados.length === 0 ? (
+                  <div className="text-xs text-slate-500">No hay asociados asignados aún.</div>
+                ) : (
+                  <ul className="space-y-1">
+                    {asociados.map((p) => (
+                      <li key={p.id} className="flex items-center gap-2 text-xs bg-slate-100 rounded px-2 py-1">
+                        <span className={`rounded px-1 ${roleColor(p.role)}`}>{p.role === roles.DOCTOR ? 'Dr' : 'Enf'}</span>
+                        <span className="font-medium text-slate-800">{p.name}</span>
+                        <span className="text-slate-500">({p.id})</span>
+                      </li>
+                    ))}
+                  </ul>
+                )}
+              </div>
             </div>
           </div>
         </div>
@@ -283,6 +339,20 @@ export default function App(){
                             </div>
                           )
                         })}
+                      </div>
+                      {/* Resumen de roles asignados */}
+                      <div className="mt-1 text-xs text-slate-600 flex gap-2">
+                        {(() => {
+                          const assigned = week[day][shift].assigned.map(id => people.find(p => p.id === id)).filter(Boolean);
+                          const countDoctor = assigned.filter(p => p.role === roles.DOCTOR).length;
+                          const countNurse = assigned.filter(p => p.role === roles.NURSE).length;
+                          return (
+                            <>
+                              <span>Dr: {countDoctor}</span>
+                              <span>Enf: {countNurse}</span>
+                            </>
+                          );
+                        })()}
                       </div>
                     </div>
                   ))}
